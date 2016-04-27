@@ -1,0 +1,4 @@
+[
+    { "start":"2015-08-18 18:08:00", "duration":1, "channel":"stream name one", "programme":"Test Recording"},
+    { "start":"2015-08-18 19:20:00", "end":"2015-08-18 20:20:00", "channel":"stream name two", "programme":"Second Recording"}
+]
