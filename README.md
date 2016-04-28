@@ -1,4 +1,4 @@
-VLC Stream Saver Scheduler
+VLC Stream Capture Scheduler
 ======================
 
 Script authored by jwhite88 and downloaded from [http://code.activestate.com/recipes/579096-vlcpy-stream-capture-scheduler-script/](http://code.activestate.com/recipes/579096-vlcpy-stream-capture-scheduler-script/)
@@ -46,5 +46,8 @@ Commands:
 Once the script is running, it will automatically parse the channel list and schedule. There are three basic commands, trigger by key presses:
 
 * pressing "R" reloads the schedule and will update any upcoming scheduled recordings
-* pressing "C" reloads the channel list
-* pressing "Q" exits the script
+* pressing "L" lists current recordings and schedule
+* pressing "I" reinitialises channels and schedule
+* pressing "C" reloads the channel list (not implemented)
+* pressing "Q" exits the script (safely)
+* pressing "Q" twice exits the script immediatly (not recommended)
