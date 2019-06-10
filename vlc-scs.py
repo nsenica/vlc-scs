@@ -10,6 +10,7 @@ import datetime
 import time
 import getch # External py file
 import vlc # External py file
+import hashlib
 
 # Static global variables
 PATH = os.path.abspath(os.path.dirname(__file__))
@@ -57,6 +58,11 @@ def indentPrint(text):
 
     writePrint("\t    %s" % (text))
 
+
+def sid(source, channel, programme):
+    ''' Calculates the sid of a recording '''
+    sid = "{0} {1} {2}".format(source, channel, programme)
+    return hashlib.md5(sid).hexdigest() 
 
 def loadChannelConfig(silent=False):
     '''Load the stream configuration file.'''
@@ -144,7 +150,7 @@ def parseSchedule(schedule, channels):
             'start':dt,
             'end': endtime,
             'programme': programme,
-            'sid': x # Basic schedule id - this can be improved upon later to make it a unique identifier that is read/written by the schedule editor (or a database primary key)
+            'sid': sid(addr, channel, programme)
         }
 
     return recordings
@@ -212,14 +218,11 @@ def reloadSchedule(existing, running):
         sid = running[r]['sid']
         running_ids[sid] = r
 
-    # Get the schedule id for each of the upcoming recordings
-    upcoming_ids = {}
-    for e in existing:
-        sid = existing[e]['sid']
-        upcoming_ids[sid] = e
+    new = {}
 
     # Number of new entries
     new_rec = 0
+    old_rec = len(existing)
 
     # Compare the revised schedule against the existing
     for r in revised:
@@ -228,19 +231,11 @@ def reloadSchedule(existing, running):
         endtime = data['end']
 
         # If this recording is already running
-        if sched_id in running_ids:
+        if sched_id in running_ids.keys():
             h = running_ids[sched_id]
 
-            # TO DO: When the SID is implemented properly with the
-            # schedule editor, there will be no need to check any of these
-            # fields apart from the end time
-
-            # Check if it's the same channel and programme
-            ch = (data['channel'] == running[h]['channel'])
-            pr = (data['programme'] == running[h]['programme'])
-
-            # If it's the same channel and programme, check if we need to revise the end time
-            if pr and ch and endtime != running[h]['end']:
+            # If it's the same schedule (source, channel, programme), check if we need to revise the end time
+            if endtime != running[h]['end']:
                 timePrint('Changed end time for running recording:')
 
                 if data['programme'] is not None:
@@ -255,34 +250,18 @@ def reloadSchedule(existing, running):
         # Otherwise, it's not a currently-running recording
         # We only want to consider programmes that haven't finished yet
         elif endtime > now:
-            if sched_id in upcoming_ids:
-                s = upcoming_ids[sched_id]
+            new_rec += 1
+            new[r] = data
 
-                # Remove the old data so that it can be replaced with the new
-                temp = existing.pop(s, None)
+    
 
-                # Check if it's the same channel and programme
-                ch = (data['channel'] == temp['channel'])
-                pr = (data['programme'] == temp['programme'])
-
-                # Only notify a change if it's the same programme
-                if temp != data and ch and (pr or temp['programme'] is None):
-                    timePrint('Changes made to scheduled recording:')
-
-                    if data['programme'] is not None:
-                        indentPrint('%(programme)s (%(channel)s)' % data)
-                    else:
-                        indentPrint('%s' % s)
-
-            else:
-                new_rec += 1
-
-            existing[r] = data
+    if old_rec > 0:
+        timePrint('Removed %d new scheduled recordings.' % old_rec)
 
     if new_rec > 0:
         timePrint('Added %d new scheduled recordings.' % new_rec)
 
-    return (existing, running)
+    return (new, running)
 
 def printSchedule(recordings, handles):
 
