@@ -59,9 +59,9 @@ def indentPrint(text):
     writePrint("\t    %s" % (text))
 
 
-def sid(source, channel, programme):
+def sid(source, channel, programme, start):
     ''' Calculates the sid of a recording '''
-    sid = "{0} {1} {2}".format(source, channel, programme)
+    sid = "{0} {1} {2} {3}".format(source, channel, programme, start)
     return hashlib.md5(sid).hexdigest() 
 
 def loadChannelConfig(silent=False):
@@ -83,7 +83,12 @@ def loadSchedule(silent=False):
 
     # Read the schedule file
     f = open(timer_file, 'r')
-    rjson = json.load(f)
+    try:
+        rjson = json.load(f)
+    except ValueError:
+        timePrint('Decoding JSON has failed')
+        rjson = json.loads('[]')
+        
     f.close()
 
     recordings = len(rjson)
@@ -150,7 +155,7 @@ def parseSchedule(schedule, channels):
             'start':dt,
             'end': endtime,
             'programme': programme,
-            'sid': sid(addr, channel, programme)
+            'sid': sid(addr, channel, programme, dt)
         }
 
     return recordings
@@ -295,8 +300,16 @@ def main():
     handles = {} # Create storage for the recording handles
     busy = True
 
+    lastUpdatedAt = datetime.datetime.now()
+
     while busy:
         now = datetime.datetime.now() # Get the current timestamp
+        sinceLastUpdate = now - lastUpdatedAt
+        
+        if ( sinceLastUpdate.total_seconds() > 3600 ):
+            timePrint("Auto reloading schedule")
+            (recordings, handles) = reloadSchedule(recordings, handles)
+            lastUpdatedAt = now
 
         # Check existing recordings
         hs = handles.keys()
