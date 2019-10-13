@@ -155,7 +155,7 @@ for p in programmes:
 
         ns = p["episode-num"][0][0]
         ns_array = ns.split('.')
-        ns_season = ns_array[0]
+        ns_season = ns_array[0] or 0
         ns_season = int(ns_season)+1
         ns_episode = ns_array[1]
         ns_episode = int(ns_episode)+1
@@ -174,5 +174,8 @@ for p in programmes:
                 add_schedule(p)
 
 result = sorted(result, key=lambda k: k['start'])
-for r in result:
-    print(json.dumps(r)+",")
+
+print(json.dumps(result, indent=4))
+
+with open("schedule.json", "w") as write_file:
+    json.dump(result,write_file, indent=4)
