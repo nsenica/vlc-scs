@@ -174,5 +174,10 @@ for p in programmes:
                 add_schedule(p)
 
 result = sorted(result, key=lambda k: k['start'])
-for r in result:
-    print(json.dumps(r)+",")
+print(json.dumps(result))
+
+#print("[")
+#for r in result:
+#    print(json.dumps(r)+",")
+#
+#print("]")

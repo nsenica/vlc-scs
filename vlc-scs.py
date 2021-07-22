@@ -20,6 +20,7 @@ SCRIPT = os.path.basename(__file__)
 # Add optionParser to allow user to specify config file
 config_file = os.path.join(PATH, 'capture.json')
 timer_file = os.path.join(PATH, 'schedule.json')
+#timer_file = os.path.join(PATH, '/mnt/nas/cron/vlc-scs/schedule.json')
 log_file = os.path.join(PATH, "%s.log" % os.path.splitext(SCRIPT)[0])
 
 if sys.platform == "linux" or sys.platform == "linux2":
@@ -36,7 +37,7 @@ def writePrint(text):
     '''Write to the log and print to the screen.'''
 
     f = open(log_file, 'a')
-    print text
+    print(text)
     f.write(text)
     f.close()
 
@@ -62,12 +63,12 @@ def indentPrint(text):
 def sid(source, channel, programme):
     ''' Calculates the sid of a recording '''
     sid = "{0} {1} {2}".format(source, channel, programme)
-    return hashlib.md5(sid).hexdigest() 
+    return hashlib.md5(sid.encode('utf-8')).hexdigest() 
 
 def loadChannelConfig(silent=False):
     '''Load the stream configuration file.'''
 
-    f = open(config_file, 'r')
+    f = open(config_file, 'r', encoding='utf-8')
     cjson = json.load(f)
     f.close()
 
@@ -82,7 +83,7 @@ def loadSchedule(silent=False):
     '''Load the scheduled recordings file.'''
 
     # Read the schedule file
-    f = open(timer_file, 'r')
+    f = open(timer_file, 'r', encoding='utf-8' )
     rjson = json.load(f)
     f.close()
 
@@ -99,7 +100,7 @@ def parseSchedule(schedule, channels):
     recordings = {}
     schedules = len(schedule)
 
-    for x in xrange(0, schedules):
+    for x in range(0, schedules):
         entry = schedule[x] # should be a JSON object
 
         # Recording start time
@@ -167,20 +168,20 @@ def initialiseTS(channel, tstamp=datetime.datetime.now(), programme=None, ext='.
 
     # If we have a programme name, add it to the filename
     if programme is not None:
-        programme.replace(' ', '_') # Replace whitespace with underscores
+        programme.replace(" ", "_") # Replace whitespace with underscores
         fn.append(programme)
 
-    fn_str = '_'.join(fn)
-    name = '%s%s' % (fn_str, ext)
+    fn_str = "_".join(fn)
+    name = "" + fn_str + ext
     n = 0
 
     # While a filename matches the standard naming pattern, increment the
     # counter until we find a spare filename
     while name in d:
-        name = '%s_%d%s' % (fn_str, n, ext)
+        name = fn_str + "_" +  n + ext
         n += 1
 
-    return os.path.join(PATH, name)
+    return name #os.path.join(PATH, name)
 
 
 def recordStream(instream, outfile):
@@ -189,6 +190,7 @@ def recordStream(instream, outfile):
     inst = vlc.Instance() # Create a VLC instance
     p = inst.media_player_new() # Create a player instance
     cmd1 = "sout=file/ts:%s" % outfile
+    #cmd1 = "sout=file/ts:/mnt/nas/temp/%s" % outfile
     media = inst.media_new(instream, cmd1)
     media.get_mrl()
     p.set_media(media)
@@ -267,13 +269,13 @@ def printSchedule(recordings, handles):
 
     hs = handles.keys()
     if hs:
-        print 'Recording: '
+        print('Recording: ')
     for h in sorted(hs):
         printHandle(handles[h])
 
     rs = recordings.keys()
     if rs:
-        print 'Schedule: '
+        print('Schedule: ')
     for r in sorted(rs):
         printRecord(recordings[r])
 
@@ -281,14 +283,14 @@ def printHandle(handle):
     end = handle['end']
     channel = handle['channel']
     programme = handle['programme']
-    print 'End: %s Channel: %s Programme: %s ' % (end, channel, programme)
+    print("End: ", end, " Channel: ", channel, " Programme: ", programme)
 
 def printRecord(record):
     start = record['start']
     end = record['end']
     channel = record['channel']
     programme = record['programme']
-    print 'From: %s To: %s Channel: %s Programme: %s ' % (start, end, channel, programme)
+    print("From: ", start, " End: ", end, " Channel: ", channel, " Programme: ", programme)
 
 def main():
     recordings = initialise() # Load the channels and schedule
@@ -300,6 +302,7 @@ def main():
 
         # Check existing recordings
         hs = handles.keys()
+        hs_to_remove = []
         for h in hs:
             data = handles[h]
             end = data['end']
@@ -312,13 +315,19 @@ def main():
                     data['player'].stop() # Stop playback
                     data['player'].release() # Close the player
                     data['inst'].release() # Destroy the instance
-                except Exception, err:
+                except Exception as err:
                     timePrint("Unable to destroy player reference due to error:")
                     writePrint(str(err))
-                handles.pop(h) # Remove the handle to the player
+                #handles.pop(h) # Remove the handle to the player
+                hs_to_remove.append(h)
+
+        # Remove the item from the handles
+        for h in hs_to_remove:
+            handles.pop(h)
 
         # Loop through the schedule
         rs = recordings.keys()
+        to_remove = []
         for r in rs:
             data = recordings[r] # Schedule entry details
             start = data['start']
@@ -358,9 +367,13 @@ def main():
                     indentPrint("%s (%s)" % (programme, channel))
                     indentPrint("%s to %s" % (start.strftime('%Y-%m-%d %H:%M:%S'), end.strftime('%Y-%m-%d %H:%M:%S')))
 
-                # Remove the item from the schedule to prevent it being
-                # processed again
-                recordings.pop(r)
+                # Mark to remove from the recordings
+                to_remove.append(r)
+
+        # Remove the item from the schedule to prevent it being
+        # processed again
+        for r in to_remove:
+            recordings.pop(r)
 
         k = len(handles.keys()) + len(recordings.keys())
         #busy = k > 0
@@ -370,6 +383,11 @@ def main():
         while n > 0:
             keyhit = getch.getch()
             n -= 1
+            
+            t = time.localtime()
+            if (time.mktime(t) % (3600*4) == 0):
+                timePrint('Reloading schedule...')
+                (recordings, handles) = reloadSchedule(recordings, handles)
 
             # Check if we have a keyhit
             if keyhit is not None:
